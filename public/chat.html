@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Trip Data</title>
+    <style>
+        :root {
+            --bg: #fafafa;
+            --card: #fff;
+            --text: #333;
+            --muted: #555;
+            --primary: #1a73e8;
+            --shadow: rgba(0,0,0,0.08);
+            --border: #e5e7eb;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 20px;
+            line-height: 1.6;
+            color: var(--text);
+        }
+        h1 { text-align: center; color: #2c3e50; }
+
+        /* Trip layout */
+        .layout {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
+        }
+
+        .trip {
+            min-width: 0;
+        }
+        .trip-info {
+            text-align: center; margin-bottom: 30px;
+        }
+        .day {
+            background: var(--card);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px var(--shadow);
+            border: 1px solid var(--border);
+        }
+        .day h2 { margin-top: 0; color: var(--primary); }
+        .activity { margin: 8px 0; }
+        .label { font-weight: bold; color: var(--muted); }
+        pre { white-space: pre-wrap; }
+
+        /* Chat panel */
+        .chat-panel {
+            position: sticky;
+            top: 20px;
+            align-self: start;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px var(--shadow);
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 40px);
+            max-height: 760px;
+        }
+        .chat-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            font-weight: bold;
+        }
+        .chat-body {
+            padding: 12px;
+            overflow-y: auto;
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #f6f7fb;
+        }
+        .chat-empty {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.95rem;
+            margin-top: 8px;
+        }
+        .bubble {
+            max-width: 80%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px var(--shadow);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .bubble.user {
+            margin-left: auto;
+            background: #e8f0fe;
+            border: 1px solid #d2e3fc;
+        }
+        .bubble.ai {
+            margin-right: auto;
+            background: #ffffff;
+            border: 1px solid var(--border);
+        }
+        .bubble.error {
+            background: #fff4f4;
+            border: 1px solid #f2c6c6;
+        }
+        .meta {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+        .chat-footer {
+            border-top: 1px solid var(--border);
+            padding: 10px;
+            background: var(--card);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+        }
+        textarea {
+            width: 100%;
+            resize: none;
+            min-height: 44px;
+            max-height: 140px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            outline: none;
+            font: inherit;
+            background: #fff;
+        }
+        textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
+        button {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid #1557b0;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button[disabled] { opacity: 0.6; cursor: not-allowed; }
+        .sr-only {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+        }
+
+        /* Small tweaks for the "save trip" bits */
+        .save-trip code { padding: 2px 6px; background: #f0f2f5; border-radius: 6px; word-break: break-all; }
+        .save-trip .btn-inline { margin-left: 8px; padding: 6px 10px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<h1>Trip Itinerary</h1>
+
+<div class="layout">
+    <div class="trip">
+        <div id="output">Loading…</div>
+    </div>
+
+    <aside class="chat-panel" aria-label="Trip chat">
+        <div class="chat-header">Trip Assistant</div>
+        <div id="chatBody" class="chat-body" aria-live="polite" aria-busy="true">
+            <div class="chat-empty" id="chatEmpty">Loading messages…</div>
+        </div>
+        <form id="chatForm" class="chat-footer">
+            <label for="chatInput" class="sr-only">Message</label>
+            <textarea id="chatInput" name="message" placeholder="Ask about this itinerary… (Shift+Enter for newline)" required></textarea>
+            <button id="chatSend" type="submit">Send</button>
+        </form>
+    </aside>
+</div>
+
+<script>
+    // ---------------- Utilities ----------------
+    function getTripIdFromPath() {
+        const path = window.location.pathname;
+        const prefix = "/trip/";
+        return path.startsWith(prefix) ? path.slice(prefix.length) : null;
+    }
+    function nowHHMM() {
+        const d = new Date();
+        return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    }
+    function scrollChatToBottom() {
+        const body = document.getElementById('chatBody');
+        body.scrollTop = body.scrollHeight;
+    }
+    function setChatBusy(isBusy) {
+        const body = document.getElementById('chatBody');
+        body.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+    }
+    async function copyToClipboard(text) {
+        try { await navigator.clipboard.writeText(text); } catch {}
+    }
+
+    // Sanitized text node helper (avoid innerHTML for untrusted content)
+    function makeBubble(text, who = 'ai') {
+        const wrap = document.createElement('div');
+        wrap.className = `bubble ${who}`;
+        const p = document.createElement('div');
+        p.textContent = text ?? '';
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = who === 'user' ? `You · ${nowHHMM()}` : `Assistant · ${nowHHMM()}`;
+        wrap.appendChild(p);
+        wrap.appendChild(meta);
+        return wrap;
+    }
+    function makeErrorBubble(text) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bubble error';
+        const p = document.createElement('div');
+        p.textContent = text ?? 'Something went wrong.';
+        wrap.appendChild(p);
+        return wrap;
+    }
+
+    // --------------- Trip fetch/render ---------------
+    async function fetchTripData() {
+        const tripId = getTripIdFromPath();
+        const output = document.getElementById('output');
+
+        if (!tripId) {
+            output.textContent = "No trip ID in URL path.";
+            return;
+        }
+        const url = `/trip/${encodeURIComponent(tripId)}`;
+        try {
+            const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            renderTripData(data);
+        } catch (err) {
+            output.textContent = `Error fetching data: ${err}`;
+        }
+    }
+
+    function renderTripData(data) {
+        const container = document.getElementById('output');
+        container.innerHTML = '';
+
+        // Header info + Save section
+        const tripInfo = document.createElement('div');
+        tripInfo.className = 'trip-info';
+        const id = getTripIdFromPath();
+        const tripUrl = `${location.origin}/trip/${id}`;
+        tripInfo.innerHTML = `
+          <h2>${data.destination}</h2>
+          <p><strong>${data.days}</strong> days</p>
+          <div class="save-trip" aria-live="polite">
+            <p><strong>Save this trip</strong></p>
+            <p>
+              <span class="label">Trip ID:</span>
+              <code id="tripIdCode">${id}</code>
+              <button id="copyIdBtn" type="button" class="btn-inline" title="Copy Trip ID">Copy ID</button>
+            </p>
+            <p>
+              <span class="label">Link:</span>
+              <code id="tripLinkCode">${tripUrl}</code>
+              <button id="copyLinkBtn" type="button" class="btn-inline" title="Copy Link">Copy link</button>
+            </p>
+            <p class="meta">Bookmark this page or save the Trip ID to return later.</p>
+          </div>
+        `;
+        container.appendChild(tripInfo);
+
+        // Wire copy buttons
+        document.getElementById('copyIdBtn')?.addEventListener('click', () => copyToClipboard(id));
+        document.getElementById('copyLinkBtn')?.addEventListener('click', () => copyToClipboard(tripUrl));
+
+        // Split itinerary sections (by the “.” separator)
+        const sections = (data.response || '').trim().split(/\n\.\n\n?/).filter(Boolean);
+
+        sections.forEach((section, index) => {
+            const lines = section.split('\n').filter(Boolean);
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'day';
+
+            // Automatically label as Day 1, Day 2, etc.
+            const dayNumber = index + 1;
+            let html = `<h2>Day ${dayNumber}</h2>`;
+
+            // Parse activities
+            lines.forEach(line => {
+                const parts = line.split(':');
+                if (parts.length >= 2) {
+                    const time = parts.shift().trim();
+                    const desc = parts.join(':').trim();
+                    if (time && desc) {
+                        html += `<div class="activity"><span class="label">${time}:</span> ${desc}</div>`;
+                    }
+                }
+            });
+
+            dayDiv.innerHTML = html;
+            container.appendChild(dayDiv);
+        });
+    }
+
+    // --------------- Chat: history & send ---------------
+    async function loadChatHistory() {
+        const tripId = getTripIdFromPath();
+        const body = document.getElementById('chatBody');
+        const empty = document.getElementById('chatEmpty');
+        setChatBusy(true);
+        empty.textContent = 'Loading messages…';
+
+        try {
+            const res = await fetch(`/chat/${encodeURIComponent(tripId)}`, { headers: { 'Accept': 'application/json' } });
+            const contentType = res.headers.get('content-type') || '';
+            // The backend might return plain text "No messages yet"
+            let payload;
+            if (contentType.includes('application/json')) {
+                payload = await res.json();
+            } else {
+                const text = await res.text();
+                if (text.trim().toLowerCase().includes('no messages')) {
+                    empty.textContent = 'No messages yet — ask me anything about this trip!';
+                    setChatBusy(false);
+                    return;
+                }
+                // Try to parse JSON even if content-type is incorrect
+                try { payload = JSON.parse(text); } catch { payload = null; }
+            }
+
+            body.innerHTML = ''; // clear
+            if (!payload || (Array.isArray(payload) && payload.length === 0)) {
+                empty.textContent = 'No messages yet — ask me anything about this trip!';
+                body.appendChild(empty);
+                setChatBusy(false);
+                return;
+            }
+
+            // Correct order: handle arrays first, then objects
+            const msgs = Array.isArray(payload) ? payload : [];
+            for (const m of msgs) {
+                let author, text;
+
+                if (Array.isArray(m)) {
+                    // Tuple shape: [message, messager_role, created_at]
+                    text   = m[0] ?? '';
+                    author = m[1] ?? 'AI';
+                } else if (m && typeof m === 'object') {
+                    // Object shape (future-proof)
+                    author = m.author || m.role || m.who || 'AI';
+                    text   = m.message || m.content || m.text || m.body || '';
+                } else {
+                    text = String(m);
+                    author = 'AI';
+                }
+
+                const who = /user/i.test(author) ? 'user' : 'ai';
+                body.appendChild(makeBubble(text, who));
+            }
+            setChatBusy(false);
+            scrollChatToBottom();
+        } catch (e) {
+            body.appendChild(makeErrorBubble('Could not load chat history.'));
+            setChatBusy(false);
+        }
+    }
+
+    async function sendChatMessage(message) {
+        const tripId = getTripIdFromPath();
+        const body = document.getElementById('chatBody');
+
+        // Optimistic user bubble
+        const userBubble = makeBubble(message, 'user');
+        body.appendChild(userBubble);
+        scrollChatToBottom();
+
+        const form = new FormData();
+        form.append('message', message);
+
+        try {
+            const res = await fetch(`/trip/${encodeURIComponent(tripId)}`, {
+                method: 'POST',
+                body: form
+                // NOTE: Do NOT set Content-Type; letting the browser set multipart/form-data boundary is required
+            });
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+            // The server returns raw AI text
+            const reply = await res.text();
+
+            let cleaned = reply
+                // Remove a leading JSON blob like {"day":1,...} or {"days":5,...}
+                .replace(/^\s*\{[\s\S]*?\}\s*/s, '')
+                // Drop any “You will respond with the following:” prelude
+                .replace(/^\s*[\s\S]*?you will respond with the following:\s*/i, '')
+                // Skip everything before the first newline (like ". Based on the context..." etc.)
+                .replace(/^[^\n]*\n+/, '')
+                // Optional: strip any leading dots or blank lines before "Day 1"
+                .replace(/^\s*\.*\s*(?=Day\s*\d+:)/i, '')
+                .trim();
+            const aiBubble = makeBubble(cleaned || reply.trim(), 'ai');
+            body.appendChild(aiBubble);
+            scrollChatToBottom();
+        } catch (e) {
+            body.appendChild(makeErrorBubble('Failed to send. Please try again.'));
+            scrollChatToBottom();
+        }
+    }
+
+    // --------------- Wire up UI ---------------
+    function setupChatUI() {
+        const form = document.getElementById('chatForm');
+        const input = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('chatSend');
+
+        // Submit on Enter (Shift+Enter for newline)
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                form.requestSubmit();
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            sendBtn.disabled = true;
+
+            await sendChatMessage(text);
+
+            sendBtn.disabled = false;
+            input.focus();
+        });
+    }
+
+    // --------------- Init ---------------
+    document.addEventListener('DOMContentLoaded', async () => {
+        await fetchTripData();
+        setupChatUI();
+        await loadChatHistory();
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS trips (
+    id TEXT PRIMARY KEY,
+    destination TEXT NOT NULL,
+    days INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trip_id TEXT NOT NULL,
+    plan BLOB NOT NULL,
+    input_text BLOB NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS messages(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trip_id TEXT NOT NULL,
+    message TEXT NOT NULL,
+    messager_role TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE
+);

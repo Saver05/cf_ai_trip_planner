@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trip Planner</title>
+</head>
+<body>
+
+<h3>
+    Welcome to the Trip Planner!
+</h3>
+<h2>
+    Please insert where you are going and for how many days.
+</h2>
+<form id="create" action="/input" method="post" enctype="multipart/form-data">
+    <input type="text" name="destination" placeholder="Destination">
+    <input type="text" name="days" placeholder="Days">
+    <input type="submit" value="Submit">
+</form>
+
+<h2> If you already have a trip planned submit the id below</h2>
+<form id="retrieve" action="/trip/" method="get">
+    <input type="text" name="id" placeholder="Trip ID">
+    <input type="submit" value="Submit">
+</form>
+<script>
+    document.getElementById('retrieve').addEventListener('submit', function(e){
+        const id = this.elements['id'].value;
+        this.action = '/trip/' + encodeURIComponent(id);
+    });
+</script>
+</body>
+</html>
