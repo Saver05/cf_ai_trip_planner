@@ -2,7 +2,7 @@
 
 ### cf_ai_trip_planner
 
->An Ai powered trip planner built on cloudflares edge network.
+>An AI powered trip planner built on Cloudflare edge network.
 
 
 ## Overview
@@ -17,7 +17,7 @@
 > What it can not do:
 > - Once generated itinerary cannot be edited or deleted
 > - The AI will hallucinate random facts about you, the more context you give it in the questions you ask the more accurate it will be
-> - Do not put anything sensitive in here, this was a project for fun and learning not for production use and all chats will be saved.
+> - DO NOT put anything sensitive in here, this was a project for fun and learning not for production use and all chats will be saved.
 
 ## How to use
 
