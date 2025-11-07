@@ -43,3 +43,6 @@ X [ERROR] Processing wrangler.toml configuration:
 
 ### 5.
 Generate documentation
+
+### 6.
+Can you make this pretty. chat.html
